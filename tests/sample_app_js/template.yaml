@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: JavaScript Serverless Sample App
+
+Resources:
+  Function1:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: function1.handler
+      Runtime: nodejs18.x
+      Environment:
+        Variables:
+          TABLE_NAME: sample-table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: sample-table
+
+  Function2:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: function2.handler
+      Runtime: nodejs18.x
+      Environment:
+        Variables:
+          FIRESTORE_PROJECT: sample-project
