@@ -26,8 +26,6 @@ module Image {
 
     override API::Node getAPIMemberReturn() { result = apiNode.getReturn() }
 
-    override string toString() { result = "ImageOpen" }
-
     override File::LocalFileOperation localFileOperation() { result = "READ" }
 
     override DataFlow::Node getFilePath() { result = this.getArg(0).getALocalSource() }
@@ -63,8 +61,6 @@ module Image {
       apiNode = any(Image::Range r).getAPIMemberReturn().getMember("save") and
       this = apiNode.getACall()
     }
-
-    override string toString() { result = "ImageSave" }
 
     override File::LocalFileOperation localFileOperation() { result = "WRITE" }
 

@@ -38,8 +38,6 @@ module FirestoreDB {
       result = "FIRESTORE_COLLECTION:" + Utils::strRepr(getCollectionName())
     }
 
-    override string toString() { result = getCollectionNameAsResource() }
-
     API::Node getAPIMemberReturn() { result = apiNode.getReturn() }
   }
 

@@ -25,7 +25,5 @@ module LambdaInvoke {
     string getFunctionNameAsResource() {
       result = "LAMBDA_INVOKE:" + Utils::strRepr(getFunctionName())
     }
-
-    override string toString() { result = getFunctionNameAsResource() }
   }
 }

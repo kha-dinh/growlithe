@@ -19,8 +19,6 @@ module S3Bucket {
     DataFlow::Node getBucketName() { result = this.getArg(0) }
 
     string getBucketNameAsResource() { result = "S3_BUCKET:" + Utils::strRepr(getBucketName()) }
-
-    override string toString() { result = getBucketNameAsResource() }
   }
 
   class S3BucketDownload extends DataFlow::CallCfgNode, File::LocalFile {

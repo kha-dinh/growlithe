@@ -19,8 +19,6 @@ module DynamoDBTable {
     DataFlow::Node getTableName() { result = this.getArg(0) }
 
     string getTableNameAsResource() { result = "DYNAMODB_TABLE:" + Utils::strRepr(getTableName()) }
-
-    override string toString() { result = getTableNameAsResource() }
   }
 
   class DynamoDBTableGetItem extends DataFlow::CallCfgNode {
