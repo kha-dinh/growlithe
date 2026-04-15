@@ -16,8 +16,19 @@ class GraphGenerator:
         self.graph: Graph = graph
         self.config = config
 
+    def _detect_language(self, functions: List[Function]) -> str:
+        """Detect the language from function runtimes."""
+        if not functions:
+            return "python"
+        runtime = functions[0].runtime.lower()
+        if "python" in runtime:
+            return "python"
+        elif "node" in runtime:
+            return "javascript"
+        return "python"
+
     def generate_intrafunction_graphs(self, functions: List[Function]):
-        language = "python"
+        language = self._detect_language(functions)
         logger.info(f"Generating dataflows for {len(functions)} functions.")
         sarif_parser = SarifParser(
             os.path.join(self.config.growlithe_path, f"dataflows_{language}.sarif"),
@@ -93,7 +104,7 @@ class GraphGenerator:
                 node.resource_attrs["potential_resources"] = potential_resources
 
     def add_metadata_edges(self, functions: List[Function]):
-        language = "python"
+        language = self._detect_language(functions)
         sarif_parser = SarifParser(
             os.path.join(self.config.growlithe_path, f"metadataflows_{language}.sarif"),
             self.config,
