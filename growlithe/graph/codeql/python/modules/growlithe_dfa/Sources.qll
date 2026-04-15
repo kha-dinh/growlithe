@@ -5,7 +5,7 @@ import modules.concepts.S3Bucket
 import modules.concepts.DynamoDB
 import modules.concepts.FireStore
 import modules.concepts.Image
-import semmle.python.internal.ConceptsShared
+import semmle.python.Concepts
 
 module Sources {
   class ParameterSource extends Core::Source {

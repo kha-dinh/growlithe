@@ -4,29 +4,29 @@
  */
 
 import modules.growlithe_dfa.TaintAnalysis
+import modules.growlithe_dfa.Core
+import modules.concepts.File
 import queries.Config
 import semmle.python.dataflow.new.DataFlow
 
 predicate sourceWithoutFlows(
   DataFlow::Node source, DataFlow::Node sink, string sourceState, string sinkState
 ) {
-  exists(TaintAnalysis::Tracker config |
-    config.isSource(source, sourceState) and
-    not config.hasFlow(source, _) and
-    source = sink and
-    sinkState = "None"
-  )
+  TaintAnalysis::isSource(source) and
+  sourceState = TaintAnalysis::getSourceState(source) and
+  not TaintAnalysis::Tracker::flow(source, _) and
+  source = sink and
+  sinkState = "None"
 }
 
 predicate sinkWithoutFlows(
   DataFlow::Node source, DataFlow::Node sink, string sourceState, string sinkState
 ) {
-  exists(TaintAnalysis::Tracker config |
-    config.isSink(sink, sinkState) and
-    not config.hasFlow(_, sink) and
-    sink.getALocalSource() = source and
-    sourceState = "None"
-  )
+  TaintAnalysis::isSink(sink) and
+  sinkState = TaintAnalysis::getSinkState(sink) and
+  not TaintAnalysis::Tracker::flow(_, sink) and
+  sink.getALocalSource() = source and
+  sourceState = "None"
 }
 
 predicate readAfterWriteEdges(
@@ -49,11 +49,9 @@ predicate readAfterWriteEdges(
 predicate taintFlowEdges(
   DataFlow::Node source, DataFlow::Node sink, string sourceState, string sinkState
 ) {
-  exists(TaintAnalysis::Tracker config |
-    config.hasFlow(source, sink) and
-    config.isSource(source, sourceState) and
-    config.isSink(sink, sinkState)
-  )
+  TaintAnalysis::Tracker::flow(source, sink) and
+  sourceState = TaintAnalysis::getSourceState(source) and
+  sinkState = TaintAnalysis::getSinkState(sink)
 }
 
 // Query to get valid paths for these dataflows

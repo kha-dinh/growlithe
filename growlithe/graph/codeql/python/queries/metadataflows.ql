@@ -8,11 +8,9 @@ import queries.Config
 import semmle.python.dataflow.new.DataFlow
 import modules.growlithe_dfa.Core
 
-from
-  DataFlow::Node source, DataFlow::Node sink, string sourceState, string sinkState,
-  TaintAnalysis::MetadataTracker config
+from DataFlow::Node source, DataFlow::Node sink, string sourceState, string sinkState
 where
-  config.isSource(source, sourceState) and
-  config.isSink(sink, sinkState) and
-  config.hasFlow(source, sink)
+  TaintAnalysis::MetadataTracker::flow(source, sink) and
+  sourceState = TaintAnalysis::getMetadataSourceState(source) and
+  sinkState = TaintAnalysis::getMetadataSinkState(sink)
 select sink, "$@==>$@", source, sourceState, sink, sinkState

@@ -3,8 +3,8 @@ import semmle.python.dataflow.new.DataFlow
 
 module Config {
   string getFileEndingPattern() {
-    result = ["src/function1.py",
-		"src/function2.py"]
+    result = ["src/function2.py",
+		"src/function1.py"]
   }
 
   string getFunctionName() { result = "lambda_handler" }

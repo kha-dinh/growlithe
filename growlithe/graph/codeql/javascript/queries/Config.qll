@@ -3,7 +3,7 @@ import DataFlow
 
 module Config {
   string getFileEndingPattern() {
-    result = []
+    none()
   }
 
   string getFunctionName() { result = "handler" }
