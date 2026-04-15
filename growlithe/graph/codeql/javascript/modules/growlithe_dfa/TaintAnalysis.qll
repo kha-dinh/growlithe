@@ -59,4 +59,44 @@ module TaintAnalysis {
     isSink(sink) and
     state = getSinkState(sink)
   }
+
+  // Configuration for metadata taint tracking
+  private module MetadataTrackerConfig implements DataFlow::ConfigSig {
+    // Fixed to parameter source to get metadata from
+    predicate isSource(DataFlow::Node source) {
+      source instanceof Sources::ParameterSource and
+      Config::constrainLocation2(source)
+    }
+
+    predicate isSink(DataFlow::Node sink) {
+      exists(Core::Node n | sink = n.getMetadataSink() and Config::constrainLocation2(n))
+    }
+
+    predicate isAdditionalFlowStep(DataFlow::Node node1, DataFlow::Node node2) {
+      any(Core::AdditionalTaintStep s).step(node1, node2) and
+      Config::constrainLocation2(node1) and
+      Config::constrainLocation2(node2)
+    }
+  }
+
+  /** Global taint tracking for Growlithe metadata flow analysis. */
+  module MetadataTracker = TaintTracking::Global<MetadataTrackerConfig>;
+
+  // Helper predicates for metadata tracking
+  predicate isMetadataSource(DataFlow::Node source) { MetadataTrackerConfig::isSource(source) }
+
+  predicate isMetadataSink(DataFlow::Node sink) { MetadataTrackerConfig::isSink(sink) }
+
+  string getMetadataSourceState(DataFlow::Node source) {
+    isMetadataSource(source) and
+    result = source.(Core::Source).getFlowState()
+  }
+
+  string getMetadataSinkState(DataFlow::Node sink) {
+    isMetadataSink(sink) and
+    exists(Core::Node n |
+      sink = n.getMetadataSink() and
+      (result = n.(Core::Source).getFlowState() or result = n.(Core::Sink).getFlowState())
+    )
+  }
 }

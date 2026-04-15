@@ -6,6 +6,7 @@ module Core {
   abstract class Node extends DataFlow::Node {
     // Resource string in the form of ResourceType:ExprType:ResourceName. E.g: S3_BUCKET:STATIC:raw_images
     // abstract string getResource();
+    DataFlow::Node getMetadataSink() { none() }
   }
 
   abstract class Source extends Core::Node {
