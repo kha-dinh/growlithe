@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(codeql pack install:*)",
+      "Bash(grep:*)",
+      "Bash(source:*)",
+      "Bash(python -m unittest:*)",
+      "Bash(codeql query compile:*)"
+    ]
+  }
+}
