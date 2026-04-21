@@ -156,6 +156,8 @@ class Config:
             self.growlithe_path, "growlithe_profiler.log"
         )
         self.nodes_path = os.path.join(self.growlithe_path, "nodes.json")
+        self.edges_path = os.path.join(self.growlithe_path, "edges.json")
+        self.dot_path = os.path.join(self.growlithe_path, "graph.dot")
         self.policy_spec_path = os.path.join(self.growlithe_path, "policy_spec.json")
 
     def make_paths_absolute(self):
@@ -176,6 +178,8 @@ class Config:
             "growlithe_path",
             "profiler_log_path",
             "nodes_path",
+            "edges_path",
+            "dot_path",
             "policy_spec_path",
         ]
 

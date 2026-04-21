@@ -33,7 +33,7 @@ def init_logger(profiler_log_path):
             "formatters": {
                 "console_formatter": {
                     "()": "colorlog.ColoredFormatter",
-                    "format": "%(log_color)s[%(asctime)s] [%(levelname)s] %(message)s",
+                    "format": "%(log_color)s[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
                     "log_colors": {
                         "DEBUG": "cyan",
                         "INFO": "green",

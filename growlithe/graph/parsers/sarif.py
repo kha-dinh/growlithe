@@ -112,6 +112,8 @@ class SarifParser:
             object_reference_type = ReferenceType[groups[5]]
             object_reference_name = groups[6]
 
+            logger.debug(f"{groups}")
+
             code_path = related_locations[int(groups[7]) - 1]
             node = Node(
                 Reference(resource_reference_type, resource_reference_name),
@@ -127,7 +129,7 @@ class SarifParser:
             if resource_reference_type == ReferenceType.STATIC:
                 for resource in resources:
                     if resource.name == resource_reference_name:
-                        logger.info(f"Mapping resource {resource.name} to node")
+                        logger.info(f"Mapping resource {resource.name} to node {node}")
                         node.mapped_resource = resource
                         break
             return node, code_path

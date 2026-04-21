@@ -8,6 +8,7 @@ and create policy templates based on the analysis results.
 import pickle
 import click
 import sys
+from growlithe.common.logger import logger
 from growlithe.graph.parsers.sam import SAMParser
 from growlithe.graph.parsers.terraform import TerraformParser
 from growlithe.graph.parsers.state_machine_parser import StepFunctionParser
@@ -21,7 +22,7 @@ from growlithe.common.dev_config import (
 )
 from growlithe.common.file_utils import create_dir_if_not_exists, detect_languages
 from growlithe.common.utils import profiler_decorator
-from growlithe.config import get_config
+from growlithe.config import Config, get_config
 
 
 @profiler_decorator
@@ -77,7 +78,7 @@ def analyze(config):
 
 
 @profiler_decorator
-def generate_adg(app_config_parser, config):
+def generate_adg(app_config_parser: SAMParser | TerraformParser, config: Config):
     """
     Generate an Application Dependency Graph (ADG) based on the parsed application configuration.
 
@@ -89,6 +90,7 @@ def generate_adg(app_config_parser, config):
         Graph: The generated Application Dependency Graph.
     """
     # Create a graph object
+    logger.info(f"{app_config_parser.get_resources()}")
     graph = Graph(config.app_name)
     if app_config_parser:
         graph.add_functions(app_config_parser.get_functions())
@@ -101,6 +103,8 @@ def generate_adg(app_config_parser, config):
     graph_generator.add_inter_function_edges(app_config_parser.get_resources())
 
     graph.dump_nodes_json(config.nodes_path)
+    graph.dump_edges_json(config.edges_path)
+    graph.dump_dot(config.dot_path)
 
     return graph
 

@@ -8,6 +8,7 @@ in an application.
 
 import json
 import ast
+import subprocess
 from collections import deque
 from typing import List
 from growlithe.common.logger import logger
@@ -47,6 +48,7 @@ class Graph:
         Returns:
             Node: The added node or an existing equivalent node.
         """
+        logger.debug(f"Adding node {new_node}")
         # Check if a node with the same properties already exists in the graph
         for existing_node in self.nodes:
             if existing_node == new_node:
@@ -73,9 +75,11 @@ class Graph:
         Returns:
             Edge: The added edge or an existing equivalent edge.
         """
+        logger.debug(f"Adding edge {edge}")
         for existing_edge in self.edges:
             if existing_edge == edge:
                 return existing_edge
+
         if edge.edge_type == EdgeType.METADATA:
             self.metadata_edges.append(edge)
         else:
@@ -101,6 +105,66 @@ class Graph:
             resources (list[Resource]): The resources to be added.
         """
         self.resources = resources
+
+    def dump_dot(self, dot_path):
+        """
+        Dump the graph to a Graphviz DOT file.
+
+        Edge styles: DATA = solid, METADATA = dashed, INDIRECT = dotted.
+
+        Args:
+            dot_path (str): The path to save the .dot file.
+        """
+        edge_styles = {
+            EdgeType.DATA: "solid",
+            EdgeType.METADATA: "dashed",
+            EdgeType.INDIRECT: "dotted",
+        }
+
+        lines = [f'digraph "{self.name}" {{', "    node [shape=box fontname=monospace];"]
+
+        # Group nodes by function for subgraphs
+        fn_nodes: dict = {}
+        for node in self.nodes:
+            fn_name = node.object_fn.name if node.object_fn else "__global__"
+            fn_nodes.setdefault(fn_name, []).append(node)
+
+        for fn_name, nodes in fn_nodes.items():
+            lines.append(f'    subgraph "cluster_{fn_name}" {{')
+            lines.append(f'        label="{fn_name}";')
+            for node in nodes:
+                node_id = str(node.node_id)
+                label = f"{node.object_type}\\n{node.resource}\\n{node.object}"
+                lines.append(f'        "{node_id}" [label="{label}"];')
+            lines.append("    }")
+
+        for edge in self.edges + self.metadata_edges:
+            style = edge_styles.get(edge.edge_type, "solid")
+            src = str(edge.source.node_id)
+            snk = str(edge.sink.node_id)
+            label = edge.edge_type.value
+            lines.append(
+                f'    "{src}" -> "{snk}" [label="{label}" style={style}];'
+            )
+
+        lines.append("}")
+
+        with open(dot_path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+            logger.info(f"Graph dumped to {dot_path}")
+
+        png_path = dot_path.rsplit(".", 1)[0] + ".png"
+        try:
+            subprocess.run(
+                ["dot", "-Tpng", dot_path, "-o", png_path],
+                check=True,
+                capture_output=True,
+            )
+            logger.info(f"Graph rendered to {png_path}")
+        except FileNotFoundError:
+            logger.warning("Graphviz 'dot' not found on PATH; skipping PNG render")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"dot render failed: {e.stderr.decode().strip()}")
 
     def visualize(self):
         """
@@ -139,6 +203,20 @@ class Graph:
 
         with open(nodes_json_path, "w") as f:
             json.dump(nodes_json_list, f, indent=4)
+
+    def dump_edges_json(self, edges_json_path):
+        """
+        Dump all graph edges (data, indirect, and metadata) to a JSON file.
+
+        Args:
+            edges_json_path (str): The path to save the JSON file.
+        """
+
+        edges_json_list = [
+            edge.to_json() for edge in self.edges + self.metadata_edges
+        ]
+        with open(edges_json_path, "w") as f:
+            json.dump(edges_json_list, f, indent=4)
 
     def dump_policy_edges_json(self, policy_edges_json_path):
         """

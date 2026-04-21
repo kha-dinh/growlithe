@@ -48,7 +48,7 @@ class Edge:
         self.write_policy = Policy("WRITE", DEFAULT_POLICY)
 
     def __repr__(self):
-        return f"{self.source.__repr__()} -{self.edge_id}-> {self.sink.__repr__()}"
+        return f"{self.source.__repr__()} -{self.edge_id}({self.edge_type})-> {self.sink.__repr__()}"
 
     def __eq__(self, edge2):
         """
@@ -71,6 +71,15 @@ class Edge:
                 "function": self.function.__repr__(),
             }
         return None
+
+    def to_json(self):
+        return {
+            "id": self.edge_id,
+            "type": self.edge_type.value,
+            "source": self.source.__repr__(),
+            "sink": self.sink.__repr__(),
+            "function": self.function.__repr__(),
+        }
 
     def update_policy(self, policy_json):
         self.read_policy = Policy("READ", policy_json["read"], self.source)
