@@ -88,7 +88,7 @@ class TerraformParser:
                         "google_storage_bucket": ResourceType.S3_BUCKET,
                         "google_storage_bucket_object": ResourceType.S3_BUCKET,
                         "google_cloudfunctions_function_iam_member": ResourceType.IAM_ROLE,
-                        "google_firestore_database": ResourceType.DYNAMODB,
+                        "google_firestore_database": ResourceType.DYNAMODB_TABLE,
                     }
                     resource: Resource = Resource(
                         name=resource_name,

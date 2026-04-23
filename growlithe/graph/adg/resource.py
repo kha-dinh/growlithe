@@ -16,7 +16,7 @@ class ResourceType(Enum):
     """
 
     S3_BUCKET = "AWS::S3::Bucket"
-    DYNAMODB = "AWS::DynamoDB::Table"
+    DYNAMODB_TABLE = "AWS::DynamoDB::Table"
     FUNCTION = "AWS::Serverless::Function"
     STEP_FUNCTION = "AWS::Serverless::StateMachine"
     CONNECTOR = "AWS::Serverless::Connector"
