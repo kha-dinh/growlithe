@@ -122,38 +122,31 @@ class GraphGenerator:
                         if pair not in function_pairs:
                             function_pairs.append(pair)
 
+                            
         for source, target in function_pairs:
             self.add_potential_indirect_flows(source, target)
 
     def add_potential_resources(self, resources):
         for node in self.graph.nodes:
-            if (
-                node.object_type == "S3_BUCKET"
-                and "potential_resources" not in node.resource_attrs
-            ):
-                potential_resources = []
-                for resource in resources:
-                    if resource.type == ResourceType.S3_BUCKET:
-                        potential_resources.append(resource)
+            if "potential_resources" in node.resource_attrs:
+                continue
+            if node.object_type == "S3_BUCKET":
+                if node.mapped_resource is not None:
+                    potential_resources = [node.mapped_resource]
+                else:
+                    potential_resources = [r for r in resources if r.type == ResourceType.S3_BUCKET]
                 node.resource_attrs["potential_resources"] = potential_resources
-            elif (
-                node.object_type == "DYNAMODB_TABLE"
-                and "potential_resources" not in node.resource_attrs
-            ):
-                potential_resources = []
-                for resource in resources:
-                    if resource.type == ResourceType.DYNAMODB_TABLE:
-                        potential_resources.append(resource)
+            elif node.object_type == "DYNAMODB_TABLE":
+                if node.mapped_resource is not None:
+                    potential_resources = [node.mapped_resource]
+                else:
+                    potential_resources = [r for r in resources if r.type == ResourceType.DYNAMODB_TABLE]
                 node.resource_attrs["potential_resources"] = potential_resources
-            elif (
-                node.object_type == "LAMBDA_INVOKE"
-                and "potential_resources" not in node.resource_attrs
-            ):
-                potential_resources = []
-                for resource in resources:
-                    if resource.type == ResourceType.FUNCTION:
-                        potential_resources.append(resource)
-
+            elif node.object_type == "LAMBDA_INVOKE":
+                if node.mapped_resource is not None:
+                    potential_resources = [node.mapped_resource]
+                else:
+                    potential_resources = [r for r in resources if r.type == ResourceType.FUNCTION]
                 node.resource_attrs["potential_resources"] = potential_resources
                 logger.warn(f"{node} {potential_resources}")
 
@@ -195,21 +188,31 @@ class GraphGenerator:
     def handle_trigger(self, source: Resource, target: Function):
         # S3 trigger
         if source.type == ResourceType.S3_BUCKET:
-            self.append_resource_metadata(source)
+            self.append_resource_metadata(source, target)
         if source.type == ResourceType.DYNAMODB_TABLE:
-            self.append_resource_metadata(source)
+            self.append_resource_metadata(source, target)
 
-    def append_resource_metadata(self, resource: Resource):
+    def append_resource_metadata(self, resource: Resource, target_fn: Function):
         """
-        Add potential resource to the node inside the function that represents the resource
-        :param resource: Resource
+        Add potential resource to nodes inside the triggered function that represent the resource.
+        Only affects nodes within target_fn and skips nodes already statically mapped to a
+        different resource.
+        :param resource: trigger Resource
+        :param target_fn: Function triggered by the resource
         """
         for node in self.graph.nodes:
-            if node.object_type == resource.type.name:
-                if "potential_resources" in node.resource_attrs:
+            if node.object_type != resource.type.name:
+                continue
+            if node.object_fn != target_fn:
+                continue
+            # Skip nodes already statically resolved to a different resource
+            if node.mapped_resource is not None and node.mapped_resource != resource:
+                continue
+            if "potential_resources" in node.resource_attrs:
+                if resource not in node.resource_attrs["potential_resources"]:
                     node.resource_attrs["potential_resources"].append(resource)
-                else:
-                    node.resource_attrs["potential_resources"] = [resource]
+            else:
+                node.resource_attrs["potential_resources"] = [resource]
 
     def add_potential_indirect_flows(self, source: Function, target: Function):
         """
