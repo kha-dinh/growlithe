@@ -68,6 +68,10 @@ module Sources {
 
     override string getObjectPath() { result = "STATIC:ALL_RECORDS" }
 
+    override DataFlow::Node getMetadataSink() {
+      result = super.getExpressionAttributeValues()
+    }
+
     override string getResource() { result = super.getTableNameAsResource() }
   }
 

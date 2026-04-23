@@ -89,6 +89,10 @@ module DynamoDBTable {
 
     DynamoDBTable getTable() { result = table }
 
+    DataFlow::Node getExpressionAttributeValues() {
+      result = this.getArgByName("ExpressionAttributeValues")
+    }
+
     string getTableNameAsResource() { result = table.getTableNameAsResource() }
   }
 
