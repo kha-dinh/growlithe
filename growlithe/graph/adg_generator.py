@@ -44,6 +44,7 @@ class GraphGenerator:
 
     def add_inter_function_edges(self, resources: List[Resource]):
         function_pairs = []
+        trigger_pairs = []  # (trigger_resource, target_function)
         for source in resources:
             for target in source.dependencies:
                 # source -> target
@@ -55,14 +56,74 @@ class GraphGenerator:
                     else:
                         # trigger
                         self.handle_trigger(source, target)
+                        trigger_pairs.append((source, target))
                 else:
                     # should not happen
                     logger.error(
                         f"{source.name}:{source.type} -> {target.name}:{target.type} is not supported."
                     )
+
+        # Derive function chains from LAMBDA_INVOKE nodes detected by CodeQL
+        for node in self.graph.nodes:
+            if node.object_type == "LAMBDA_INVOKE" and node.is_sink:
+                source_fn = node.object_fn
+                if source_fn is None:
+                    continue
+                resource_name = str(node.resource)
+                for resource in resources:
+                    if isinstance(resource, Function) and resource.name in resource_name:
+                        target_event = resource.get_event_node()
+                        if target_event is not None:
+                            # Connect LAMBDA_INVOKE sink directly to target's event node
+                            edge = Edge(
+                                u=node,
+                                v=target_event,
+                                source_code_path=node.object_code_location,
+                                sink_code_path=target_event.object_code_location,
+                                function=source_fn,
+                                edge_type=EdgeType.INDIRECT,
+                            )
+                            self.graph.add_edge(edge)
+                        if (source_fn, resource) not in function_pairs:
+                            function_pairs.append((source_fn, resource))
+                            logger.debug(f"Derived function pair from LAMBDA_INVOKE: {source_fn.name} -> {resource.name}")
+                        break
+
+        self.add_potential_resources(resources)
+
+        # Add indirect edges from trigger sources: any function writing to the trigger
+        # resource has an indirect flow into the triggered function's event node.
+        for trigger_resource, target_fn in trigger_pairs:
+            target_event = target_fn.get_event_node()
+            if target_event is None:
+                continue
+            for node in self.graph.nodes:
+                if (
+                    node.scope == Scope.GLOBAL
+                    and node.is_sink
+                    and node.object_fn is not None
+                    and node.object_fn != target_fn
+                ):
+                    potential = node.resource_attrs.get("potential_resources", [])
+                    if trigger_resource in potential:
+                        edge = Edge(
+                            u=node,
+                            v=target_event,
+                            source_code_path=node.object_code_location,
+                            sink_code_path=target_event.object_code_location,
+                            function=node.object_fn,
+                            edge_type=EdgeType.INDIRECT,
+                        )
+                        self.graph.add_edge(edge)
+                        logger.debug(
+                            f"Trigger indirect edge: {node} -> {target_event} via {trigger_resource.name}"
+                        )
+                        pair = (node.object_fn, target_fn)
+                        if pair not in function_pairs:
+                            function_pairs.append(pair)
+
         for source, target in function_pairs:
             self.add_potential_indirect_flows(source, target)
-        self.add_potential_resources(resources)
 
     def add_potential_resources(self, resources):
         for node in self.graph.nodes:
@@ -81,16 +142,7 @@ class GraphGenerator:
             ):
                 potential_resources = []
                 for resource in resources:
-                    if resource.type == ResourceType.DYNAMODB:
-                        potential_resources.append(resource)
-                node.resource_attrs["potential_resources"] = potential_resources
-            elif (
-                node.object_type == "LAMBDA_FUNCTION"
-                and "potential_resources" not in node.resource_attrs
-            ):
-                potential_resources = []
-                for resource in resources:
-                    if resource.type == ResourceType.FUNCTION:
+                    if resource.type == ResourceType.DYNAMODB_TABLE:
                         potential_resources.append(resource)
                 node.resource_attrs["potential_resources"] = potential_resources
             elif (
@@ -101,7 +153,12 @@ class GraphGenerator:
                 for resource in resources:
                     if resource.type == ResourceType.FUNCTION:
                         potential_resources.append(resource)
+
                 node.resource_attrs["potential_resources"] = potential_resources
+                logger.warn(f"{node} {potential_resources}")
+
+            if node.resource_attrs:
+                logger.debug(f"{node} {node.resource_attrs}")
 
     def add_metadata_edges(self, functions: List[Function]):
         language = self._detect_language(functions)
@@ -139,7 +196,7 @@ class GraphGenerator:
         # S3 trigger
         if source.type == ResourceType.S3_BUCKET:
             self.append_resource_metadata(source)
-        if source.type == ResourceType.DYNAMODB:
+        if source.type == ResourceType.DYNAMODB_TABLE:
             self.append_resource_metadata(source)
 
     def append_resource_metadata(self, resource: Resource):
