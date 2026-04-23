@@ -122,7 +122,25 @@ class GraphGenerator:
                         if pair not in function_pairs:
                             function_pairs.append(pair)
 
-                            
+        # Add function pairs for independently-triggered functions sharing a resource
+        # (e.g. fn A writes to DynamoDB table X, fn B reads from X — no explicit invoke chain)
+        for node1 in self.graph.nodes:
+            if not (node1.scope == Scope.GLOBAL and node1.is_sink and node1.object_fn):
+                continue
+            resources1 = set(node1.resource_attrs.get("potential_resources", []))
+            for node2 in self.graph.nodes:
+                if not (node2.scope == Scope.GLOBAL and node2.is_source and node2.object_fn):
+                    continue
+                if node1.object_fn == node2.object_fn:
+                    continue
+                if resources1.intersection(node2.resource_attrs.get("potential_resources", [])):
+                    pair = (node1.object_fn, node2.object_fn)
+                    if pair not in function_pairs:
+                        function_pairs.append(pair)
+                        logger.debug(
+                            f"Shared-resource function pair: {node1.object_fn.name} -> {node2.object_fn.name}"
+                        )
+
         for source, target in function_pairs:
             self.add_potential_indirect_flows(source, target)
 
