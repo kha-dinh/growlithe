@@ -5,7 +5,13 @@
       "Bash(grep:*)",
       "Bash(source:*)",
       "Bash(python -m unittest:*)",
-      "Bash(codeql query compile:*)"
+      "Bash(codeql query compile:*)",
+      "Bash(python3:*)",
+      "Bash(uv run:*)",
+      "Bash(ls tests/sample_app/growlithe_SampleApp/*.sarif)",
+      "Bash(python3 -c \":*)",
+      "Bash(/Users/khadd/Projects/growlithe/codeql/codeql pack:*)",
+      "Bash(/Users/khadd/Projects/growlithe/codeql/codeql resolve:*)"
     ]
   }
 }
