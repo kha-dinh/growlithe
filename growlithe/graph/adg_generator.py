@@ -11,6 +11,24 @@ from growlithe.common.logger import logger
 from growlithe.config import Config
 
 
+def _build_reachable(functions):
+    """Maps each Function to the set of Functions reachable via .dependencies (transitive closure)."""
+    reachable = {fn: set() for fn in functions}
+    changed = True
+    while changed:
+        changed = False
+        for fn in functions:
+            for dep in fn.dependencies:
+                if not isinstance(dep, Function):
+                    continue
+                before = len(reachable[fn])
+                reachable[fn].add(dep)
+                reachable[fn].update(reachable[dep])
+                if len(reachable[fn]) > before:
+                    changed = True
+    return reachable
+
+
 class GraphGenerator:
     def __init__(self, graph: Graph, config: Config):
         self.graph: Graph = graph
@@ -124,6 +142,11 @@ class GraphGenerator:
 
         # Add function pairs for independently-triggered functions sharing a resource
         # (e.g. fn A writes to DynamoDB table X, fn B reads from X — no explicit invoke chain)
+        functions = [r for r in resources if isinstance(r, Function)]
+        reachable = _build_reachable(functions)
+        # If no dependency info is available, skip the reachability gate to preserve
+        # original behavior (fall back to adding all shared-resource pairs).
+        use_reachability_gate = any(reachable.values())
         for node1 in self.graph.nodes:
             if not (node1.scope == Scope.GLOBAL and node1.is_sink and node1.object_fn):
                 continue
@@ -134,11 +157,18 @@ class GraphGenerator:
                 if node1.object_fn == node2.object_fn:
                     continue
                 if resources1.intersection(node2.resource_attrs.get("potential_resources", [])):
-                    pair = (node1.object_fn, node2.object_fn)
+                    source_fn = node1.object_fn
+                    target_fn = node2.object_fn
+                    if use_reachability_gate and target_fn not in reachable.get(source_fn, set()):
+                        logger.debug(
+                            f"Skipping spurious backward edge: {source_fn.name} -> {target_fn.name} (not reachable)"
+                        )
+                        continue
+                    pair = (source_fn, target_fn)
                     if pair not in function_pairs:
                         function_pairs.append(pair)
                         logger.debug(
-                            f"Shared-resource function pair: {node1.object_fn.name} -> {node2.object_fn.name}"
+                            f"Shared-resource function pair: {source_fn.name} -> {target_fn.name}"
                         )
 
         for source, target in function_pairs:
