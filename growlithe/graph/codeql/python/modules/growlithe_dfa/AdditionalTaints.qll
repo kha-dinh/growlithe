@@ -117,7 +117,7 @@ module AdditionalTaints {
     override predicate step(DataFlow::Node nodeFrom, DataFlow::Node nodeTo) {
       exists(DataFlow::MethodCallNode callNode, int argIndex |
         nodeFrom = callNode.getArg(argIndex) and
-        nodeTo = callNode.getACall()
+        nodeTo = callNode
       )
     }
   }
