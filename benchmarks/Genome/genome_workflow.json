@@ -1,0 +1,88 @@
+{
+  "Comment": "1000-Genome workflow",
+  "StartAt": "Individuals",
+  "States": {
+    "Individuals": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "${IndividualsFunctionArn}"
+      },
+      "Next": "MergeAndSifting"
+    },
+    "MergeAndSifting": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "IndividualsMerge",
+          "States": {
+            "IndividualsMerge": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${IndividualsMergeFunctionArn}"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "Sifting",
+          "States": {
+            "Sifting": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${SiftingFunctionArn}"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "FrequencyAndOverlap"
+    },
+    "FrequencyAndOverlap": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "Frequency",
+          "States": {
+            "Frequency": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${FrequencyFunctionArn}"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "MutationOverlap",
+          "States": {
+            "MutationOverlap": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${MutationOverlapFunctionArn}"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "End": true
+    }
+  }
+}

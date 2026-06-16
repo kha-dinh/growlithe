@@ -107,6 +107,75 @@ class SAMParser:
                     target_function_name = substitutions[target_function_name[2:-1]]
                 target_function = self.find_resource(target_function_name, resources)
                 source_function.add_dependency(target_function)
+            elif next_state["Type"] == "Parallel":
+                # Wire source_function to each parallel branch's root function
+                for branch in next_state.get("Branches", []):
+                    branch_start_name = branch.get("StartAt")
+                    if branch_start_name and branch_start_name in branch.get("States", {}):
+                        branch_start_state = branch["States"][branch_start_name]
+                        if branch_start_state["Type"] == "Task":
+                            branch_fn_name = branch_start_state["Parameters"]["FunctionName"]
+                            if "$" in branch_fn_name:
+                                branch_fn_name = substitutions[branch_fn_name[2:-1]]
+                            branch_fn = self.find_resource(branch_fn_name, resources)
+                            if source_function and branch_fn:
+                                source_function.add_dependency(branch_fn)
+                    # Recurse to wire internal dependencies within the branch
+                    for _, branch_state in branch.get("States", {}).items():
+                        self.extract_dependencies(resources, substitutions, branch, branch_state)
+                # Wire to the state after the Parallel block if there is one
+                if "Next" in next_state:
+                    after_state = states["States"].get(next_state["Next"])
+                    after_root_fns = []
+                    if after_state:
+                        if after_state["Type"] == "Task":
+                            after_fn_name = after_state["Parameters"]["FunctionName"]
+                            if "$" in after_fn_name:
+                                after_fn_name = substitutions[after_fn_name[2:-1]]
+                            after_fn = self.find_resource(after_fn_name, resources)
+                            if after_fn:
+                                after_root_fns.append(after_fn)
+                        elif after_state["Type"] == "Parallel":
+                            # Collect root functions of each branch in the next Parallel
+                            for after_branch in after_state.get("Branches", []):
+                                after_branch_start = after_branch.get("StartAt")
+                                if after_branch_start and after_branch_start in after_branch.get("States", {}):
+                                    after_branch_start_state = after_branch["States"][after_branch_start]
+                                    if after_branch_start_state["Type"] == "Task":
+                                        after_branch_fn_name = after_branch_start_state["Parameters"]["FunctionName"]
+                                        if "$" in after_branch_fn_name:
+                                            after_branch_fn_name = substitutions[after_branch_fn_name[2:-1]]
+                                        after_branch_fn = self.find_resource(after_branch_fn_name, resources)
+                                        if after_branch_fn:
+                                            after_root_fns.append(after_branch_fn)
+                    # Wire each branch's terminal tasks to after_root_fns
+                    if after_root_fns:
+                        for branch in next_state.get("Branches", []):
+                            for _, branch_state in branch.get("States", {}).items():
+                                if branch_state["Type"] == "Task" and "Next" not in branch_state:
+                                    branch_fn_name2 = branch_state["Parameters"]["FunctionName"]
+                                    if "$" in branch_fn_name2:
+                                        branch_fn_name2 = substitutions[branch_fn_name2[2:-1]]
+                                    branch_fn2 = self.find_resource(branch_fn_name2, resources)
+                                    if branch_fn2:
+                                        for after_fn in after_root_fns:
+                                            branch_fn2.add_dependency(after_fn)
+            elif next_state["Type"] == "Map":
+                # Wire source_function to the Map iterator's root function
+                iterator = next_state.get("Iterator", {})
+                map_start_name = iterator.get("StartAt")
+                if map_start_name and map_start_name in iterator.get("States", {}):
+                    map_start_state = iterator["States"][map_start_name]
+                    if map_start_state["Type"] == "Task":
+                        map_fn_name = map_start_state["Parameters"]["FunctionName"]
+                        if "$" in map_fn_name:
+                            map_fn_name = substitutions[map_fn_name[2:-1]]
+                        map_fn = self.find_resource(map_fn_name, resources)
+                        if source_function and map_fn:
+                            source_function.add_dependency(map_fn)
+                # Recurse to wire internal dependencies within the iterator
+                for _, iter_state in iterator.get("States", {}).items():
+                    self.extract_dependencies(resources, substitutions, iterator, iter_state)
             else:
                 logger.error(f"Unsupported state type: {next_state['Type']}")
                 raise NotImplementedError
