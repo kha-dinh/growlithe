@@ -223,6 +223,12 @@ class GraphGenerator:
     def connect_functions(self, source: Function, target: Function):
         source_ret: Node = source.get_return_node()
         target_event: Node = target.get_event_node()
+        if source_ret is None or target_event is None:
+            logger.warning(
+                f"Skipping INDIRECT edge {source.name} -> {target.name}: "
+                f"missing {'return' if source_ret is None else 'event'} node"
+            )
+            return
         edge = Edge(
             u=source_ret,
             v=target_event,
