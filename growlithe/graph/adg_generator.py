@@ -169,7 +169,19 @@ class GraphGenerator:
                 if node.mapped_resource is not None:
                     potential_resources = [node.mapped_resource]
                 else:
-                    potential_resources = [r for r in resources if r.type == ResourceType.S3_BUCKET]
+                    fn = node.object_fn
+                    iam_buckets = set()
+                    if fn is not None and (fn.iam_s3_read or fn.iam_s3_write):
+                        if node.is_sink:
+                            iam_buckets.update(fn.iam_s3_write)
+                        if node.is_source:
+                            iam_buckets.update(fn.iam_s3_read)
+                        if not node.is_source and not node.is_sink:
+                            iam_buckets.update(fn.iam_s3_read)
+                            iam_buckets.update(fn.iam_s3_write)
+                    potential_resources = list(iam_buckets) if iam_buckets else [
+                        r for r in resources if r.type == ResourceType.S3_BUCKET
+                    ]
                 node.resource_attrs["potential_resources"] = potential_resources
             elif node.object_type == "DYNAMODB_TABLE":
                 if node.mapped_resource is not None:

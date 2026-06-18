@@ -57,6 +57,8 @@ class Function(Resource):
         self.nodes = []  # List of nodes in the function
         self.edges = []  # List of edges in the function
         self.iam_policies = []  # List of IAM policies associated with the function
+        self.iam_s3_read = []   # S3 Resources this function has read access to (from SAM Policies)
+        self.iam_s3_write = []  # S3 Resources this function has write access to (from SAM Policies)
         self.code_tree = None  # AST of the function's code
 
         if self.function_path:

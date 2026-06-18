@@ -287,7 +287,41 @@ class SAMParser:
                 step_function=parent_step_function,
                 resources=resources,
             )
+        self._extract_iam_s3_policies(resources)
         return resources
+
+    def _extract_iam_s3_policies(self, resources):
+        """Populate iam_s3_read/iam_s3_write on each Function from SAM Policies."""
+        read_types = {"S3ReadPolicy", "S3CrudPolicy"}
+        write_types = {"S3WritePolicy", "S3CrudPolicy"}
+        for resource_name, resource_details in self.parsed_yaml["Resources"].items():
+            if resource_details["Type"] != "AWS::Serverless::Function":
+                continue
+            fn = self.find_resource(resource_name, resources)
+            if fn is None:
+                continue
+            for policy in resource_details.get("Properties", {}).get("Policies", []):
+                if not isinstance(policy, dict):
+                    continue
+                for policy_type, policy_props in policy.items():
+                    if not isinstance(policy_props, dict):
+                        continue
+                    bucket_ref = policy_props.get("BucketName", {})
+                    if isinstance(bucket_ref, dict):
+                        bucket_name = bucket_ref.get("Ref")
+                    elif isinstance(bucket_ref, str):
+                        bucket_name = bucket_ref
+                    else:
+                        continue
+                    if not bucket_name:
+                        continue
+                    bucket = self.find_resource(bucket_name, resources)
+                    if bucket is None:
+                        continue
+                    if policy_type in read_types and bucket not in fn.iam_s3_read:
+                        fn.iam_s3_read.append(bucket)
+                    if policy_type in write_types and bucket not in fn.iam_s3_write:
+                        fn.iam_s3_write.append(bucket)
 
     def find_resource(self, ref, resources):
         for res in resources:
