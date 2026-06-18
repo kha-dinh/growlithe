@@ -11,22 +11,9 @@ from growlithe.common.logger import logger
 from growlithe.config import Config
 
 
-def _build_reachable(functions):
-    """Maps each Function to the set of Functions reachable via .dependencies (transitive closure)."""
-    reachable = {fn: set() for fn in functions}
-    changed = True
-    while changed:
-        changed = False
-        for fn in functions:
-            for dep in fn.dependencies:
-                if not isinstance(dep, Function):
-                    continue
-                before = len(reachable[fn])
-                reachable[fn].add(dep)
-                reachable[fn].update(reachable[dep])
-                if len(reachable[fn]) > before:
-                    changed = True
-    return reachable
+def _build_direct_successors(functions):
+    """Maps each Function to its direct Function dependencies (no transitive closure)."""
+    return {fn: {dep for dep in fn.dependencies if isinstance(dep, Function)} for fn in functions}
 
 
 class GraphGenerator:
@@ -143,10 +130,10 @@ class GraphGenerator:
         # Add function pairs for independently-triggered functions sharing a resource
         # (e.g. fn A writes to DynamoDB table X, fn B reads from X — no explicit invoke chain)
         functions = [r for r in resources if isinstance(r, Function)]
-        reachable = _build_reachable(functions)
+        direct_successors = _build_direct_successors(functions)
         # If no dependency info is available, skip the reachability gate to preserve
         # original behavior (fall back to adding all shared-resource pairs).
-        use_reachability_gate = any(reachable.values())
+        use_reachability_gate = any(direct_successors.values())
         for node1 in self.graph.nodes:
             if not (node1.scope == Scope.GLOBAL and node1.is_sink and node1.object_fn):
                 continue
@@ -159,9 +146,9 @@ class GraphGenerator:
                 if resources1.intersection(node2.resource_attrs.get("potential_resources", [])):
                     source_fn = node1.object_fn
                     target_fn = node2.object_fn
-                    if use_reachability_gate and target_fn not in reachable.get(source_fn, set()):
+                    if use_reachability_gate and target_fn not in direct_successors.get(source_fn, set()):
                         logger.debug(
-                            f"Skipping spurious backward edge: {source_fn.name} -> {target_fn.name} (not reachable)"
+                            f"Skipping spurious edge: {source_fn.name} -> {target_fn.name} (not a direct successor)"
                         )
                         continue
                     pair = (source_fn, target_fn)

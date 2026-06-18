@@ -18,6 +18,7 @@ from growlithe.graph.adg.edge import Edge, EdgeType
 from growlithe.graph.adg.function import Function
 from growlithe.graph.adg.resource import Resource
 from growlithe.graph.adg.types import Scope
+from growlithe.common.dev_config import DEFAULT_POLICY
 
 
 class Graph:
@@ -52,7 +53,14 @@ class Graph:
         # Check if a node with the same properties already exists in the graph
         for existing_node in self.nodes:
             if existing_node == new_node:
-                # logger.info('Using existing node for metadata')
+                # If the new node has a different direction, merge SOURCE/SINK into the message
+                # so is_source and is_sink both return True for bidirectional S3 nodes.
+                existing_text = existing_node.object_code_location.get("message", {}).get("text", "")
+                new_text = new_node.object_code_location.get("message", {}).get("text", "")
+                if "SOURCE" in new_text and "SOURCE" not in existing_text:
+                    existing_node.object_code_location["message"]["text"] = "SOURCE, " + existing_text
+                if "SINK" in new_text and "SINK" not in existing_text:
+                    existing_node.object_code_location["message"]["text"] = "SINK, " + existing_text
                 return existing_node
         self.nodes.append(new_node)
         if new_node.object_fn:
@@ -138,14 +146,90 @@ class Graph:
                 lines.append(f'        "{node_id}" [label="{label}"];')
             lines.append("    }")
 
+        BR = '<BR ALIGN="LEFT"/>'
+        IND = "&#160;&#160;&#160;&#160;"
+
+        def _escape(s):
+            return (s.replace("&", "&amp;").replace("<", "&lt;")
+                     .replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#39;"))
+
+        def _split_top(s, sep):
+            """Split s on sep only at paren depth 0."""
+            parts, depth, cur, i = [], 0, [], 0
+            while i < len(s):
+                if s[i] == "(":
+                    depth += 1
+                    cur.append(s[i])
+                elif s[i] == ")":
+                    depth -= 1
+                    cur.append(s[i])
+                elif depth == 0 and s[i:].startswith(sep):
+                    parts.append("".join(cur).strip())
+                    cur = []
+                    i += len(sep)
+                    continue
+                else:
+                    cur.append(s[i])
+                i += 1
+            if cur:
+                parts.append("".join(cur).strip())
+            return parts
+
+        def _fully_wrapped(s):
+            if not (s.startswith("(") and s.endswith(")")):
+                return False
+            depth = 0
+            for i, c in enumerate(s):
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                if depth == 0 and i < len(s) - 1:
+                    return False
+            return True
+
+        def _fmt(s, depth=0):
+            s = s.strip()
+            if _fully_wrapped(s):
+                return "(" + _fmt(s[1:-1].strip(), depth) + ")"
+            or_parts = _split_top(s, " or ")
+            if len(or_parts) > 1:
+                ind = IND * depth
+                sep = f"{BR}{ind}<I>or</I>{BR}{ind}"
+                return sep.join(_fmt(p, depth) for p in or_parts)
+            and_parts = _split_top(s, " & ")
+            if len(and_parts) > 1:
+                ind = IND * (depth + 1)
+                sep = f"{BR}{ind}&amp; "
+                return sep.join(_fmt(p, depth + 1) for p in and_parts)
+            return _escape(s)
+
         for edge in self.edges + self.metadata_edges:
             style = edge_styles.get(edge.edge_type, "solid")
             src = str(edge.source.node_id)
             snk = str(edge.sink.node_id)
-            label = edge.edge_type.value
-            lines.append(
-                f'    "{src}" -> "{snk}" [label="{label}" style={style}];'
-            )
+            read_pol = str(edge.read_policy)
+            write_pol = str(edge.write_policy)
+            has_policy = read_pol != DEFAULT_POLICY or write_pol != DEFAULT_POLICY
+            if has_policy:
+                pol_rows = ""
+                if read_pol != DEFAULT_POLICY:
+                    pol_rows += f'<TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="2"><FONT COLOR="#cc6600"><B>R: </B>{_fmt(read_pol)}</FONT>{BR}</TD></TR>'
+                if write_pol != DEFAULT_POLICY:
+                    pol_rows += f'<TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="2"><FONT COLOR="#0055cc"><B>W: </B>{_fmt(write_pol)}</FONT>{BR}</TD></TR>'
+                html_label = (
+                    f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">'
+                    f'<TR><TD ALIGN="LEFT" BALIGN="LEFT"><B>{edge.edge_type.value}</B></TD></TR>'
+                    f'{pol_rows}'
+                    f'</TABLE>>'
+                )
+                lines.append(
+                    f'    "{src}" -> "{snk}" [label={html_label} style={style}];'
+                )
+            else:
+                lines.append(
+                    f'    "{src}" -> "{snk}" [label="{edge.edge_type.value}" style={style}];'
+                )
 
         lines.append("}")
 
@@ -188,7 +272,7 @@ class Graph:
         Returns:
             str: A string describing the number of nodes and edges in the graph.
         """
-        return f"Graph with {len(self.nodes)} nodes and {len(self.edges)} edges"
+        return f"{self.name} with {len(self.nodes)} nodes and {len(self.edges)} edges"
 
     def dump_nodes_json(self, nodes_json_path):
         """
@@ -299,8 +383,10 @@ class Graph:
         """
         Enforce policies by inserting assertions into the code.
         """
+        logger.info(f"Enforcing policies in graph {self}")
         self.populate_ancestors()
         for edge in self.edges:
+            logger.debug(f"Enforcing policy edge {edge.edge_type.name} {edge.source} -> {edge.sink}") 
             # TODO: Add to the instrumented code
             read_assertion = edge.read_policy.generate_assertion(edge.function.runtime)
             if read_assertion:
